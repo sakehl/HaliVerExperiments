@@ -5,12 +5,24 @@
 
 \newcommand{\vbar}{|}
 \newcommand{\halide}{\textsc{Halide}\xspace}
+\newcommand{\vercors}{\textsc{VerCors}\xspace}
 \newcommand{\pvl}{\textsc{Pvl}\xspace}
 \newcommand*{\ditto}{\textquotedbl}
 
 \begin{document}
 
 \begin{table}
+\centering
+\caption{Number of lines of code and annotations for different \halide algorithms, schedules  and resulting programs, and the verification times required by \vercors to prove memory safety, given that no annotations are provided by the user.  The letters after each schedule denote the used directives: 
+\texttt{\underline{c}ompute\_at}, \texttt{\underline{f}use}, \texttt{\underline{p}arallel}, \texttt{\underline{r}eorder}, \texttt{\underline{s}plit}, \texttt{\underline{st}ore\_at} and \texttt{\underline{u}nroll}. With the notation $^{\dag}$ we indicate that an experiment has inconsistent results, i.e. it verified most of the times, but failed sometimes. }
+\label{tab:verification-results-memory}
+\input{result_table_mem.tex}
+\end{table}
+
+
+\begin{table}
+\caption{Number of lines of code and annotations for different \halide algorithms, schedules  and resulting programs, and the verification times required by \vercors. \texttt{F} stands for verification failed.}
+\label{tab:verification-results}
 \centering
 \input{result_table.tex}
 \end{table}
