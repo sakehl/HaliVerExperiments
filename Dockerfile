@@ -14,7 +14,7 @@ RUN apt update && apt install -y --no-install-recommends \
 
 # Get HaliVer/Halide
 RUN cd /tmp && git clone https://github.com/sakehl/Halide.git && \
-    cd Halide && git checkout annotated_halide
+    cd Halide && git checkout annotated_halide && git checkout c9989ea35fea8b26f18da90eef1294d3dc0223af
 
 # Build HaliVer/Halide
 RUN cd /tmp/Halide && mkdir build && \
@@ -36,7 +36,7 @@ RUN mkdir /vercors && fix-permissions /vercors && git config --global --add safe
 USER $NB_UID
 
 RUN git clone https://github.com/sakehl/vercors.git /vercors \
-    && cd /vercors && git checkout haliver
+    && cd /vercors && git checkout haliver && git checkout 6c8d08fa04809463a6b80e059e081299aed71b13
 
 USER root
 RUN apt install -y curl
@@ -48,17 +48,15 @@ ENV PATH="$PATH:/vercors/bin"
 
 USER root
 
-COPY blur/blur.cpp blur/blur.cpp
-COPY conv_layer/conv_layer.cpp conv_layer/conv_layer.cpp
-COPY gemm/gemm.cpp gemm/gemm.cpp
-COPY hist/hist.cpp hist/hist.cpp
-COPY auto_viz/auto_viz.cpp auto_viz/auto_viz.cpp
+COPY src src
 
 COPY RunExperiments.ipynb RunExperiments.ipynb
 COPY preprocess.py preprocess.py
 COPY CMakeLists.txt CMakeLists.txt
 COPY CTestConfig.cmake CTestConfig.cmake
 COPY table.tex table.tex
+
+COPY results/ results/
 
 RUN mkdir -p build && mkdir -p results
 
