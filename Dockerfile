@@ -8,13 +8,26 @@ ENV TZ=Etc/UTC
 USER root
 
 RUN apt update && apt install -y --no-install-recommends \
-           ca-certificates build-essential wget git unzip \
+           ca-certificates build-essential curl git wget unzip \
            cmake clang-11 ninja-build zlib1g-dev llvm-11-dev \
-           libclang-11-dev liblld-11 liblld-11-dev
+           libclang-11-dev liblld-11 liblld-11-dev \
+           openjdk-17-jre-headless
+
+# Get VerCors
+RUN mkdir /vercors && fix-permissions /vercors && git config --global --add safe.directory /vercors
+
+USER $NB_UID
+
+RUN git clone -b 'haliver-v1.0' --single-branch --depth 1 https://github.com/sakehl/vercors.git /vercors
+
+RUN cd /vercors && ./mill vercors.compile
+
+ENV PATH="$PATH:/vercors/bin"
+
+USER root
 
 # Get HaliVer/Halide
-RUN cd /tmp && git clone https://github.com/sakehl/Halide.git && \
-    cd Halide && git checkout annotated_halide && git checkout c9989ea35fea8b26f18da90eef1294d3dc0223af
+RUN cd /tmp && git clone -b 'haliver-v1.0' --single-branch --depth 1 https://github.com/sakehl/Halide.git
 
 # Build HaliVer/Halide
 RUN cd /tmp/Halide && mkdir build && \
@@ -26,27 +39,6 @@ RUN cd /tmp/Halide && mkdir build && \
 
 # Install HaliVer/Halide
 RUN mkdir /haliver && cmake --install /tmp/Halide/build --prefix /haliver
-
-# Install pre-requisites for VerCors
-RUN apt install -y openjdk-17-jre-headless
-
-# Get VerCors
-RUN mkdir /vercors && fix-permissions /vercors && git config --global --add safe.directory /vercors
-
-USER $NB_UID
-
-RUN git clone https://github.com/sakehl/vercors.git /vercors \
-    && cd /vercors && git checkout haliver && git checkout 6c8d08fa04809463a6b80e059e081299aed71b13
-
-USER root
-RUN apt install -y curl
-USER $NB_UID
-
-RUN cd /vercors && ./mill vercors.compile
-
-ENV PATH="$PATH:/vercors/bin"
-
-USER root
 
 COPY src src
 
