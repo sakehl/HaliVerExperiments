@@ -17,3 +17,7 @@ The results are saved in the `results` folder, with a time stamp.
 
 ### HaliVer
 The HaliVer tool itself is a fork of the Halide compiler and can be found on https://github.com/sakehl/Halide/tree/annotated_halide
+
+
+## Tutorial
+We also made a tutorial of how to use the tool for your own Halide programs. This can be found under `tutorial/tutorial.cpp`
