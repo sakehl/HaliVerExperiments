@@ -92,6 +92,6 @@ int main(int argc, char *argv[]) {
   if(front) {
     relu.translate_to_pvl(name + ".pvl", {}, {}); 
   } else {
-    relu.compile_to_pvl(name + ".pvl" , {input, filter, bias}, {}, name, new_target, only_memory);
+    relu.compile_to_c(name + ".c" , {input, filter, bias}, {}, name, new_target, only_memory);
   }
 }

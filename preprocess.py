@@ -1,10 +1,9 @@
 from typing import List, Optional, Dict, Tuple, Any, Union
 from enum import Enum
 import subprocess
-import os
 import time
+import datetime
 import json
-import atexit
 
 class LineInfo:
     def __init__(self, lines_of_code: int, nr_annotations: int, loops: int):
@@ -21,6 +20,7 @@ class LineInfo:
 class Result(str,Enum):
     Pass = 'pass'
     Fail = 'fail'
+    Error = 'error'
     TimeOut = 'timeout'
 
 def is_annotation(line: str) -> bool:
@@ -58,7 +58,7 @@ def count_lines(name: str) -> LineInfo:
                 loops += 1
     return LineInfo(lines_of_code, nr_annotations, loops)
 
-def get_average(xs: List[Tuple[float, Result]]) -> Tuple[Optional[float], int, Optional[float], int, int]:
+def get_average(xs: List[Tuple[float, Result]]) -> Tuple[Optional[float], Optional[float], Optional[float], int, int, int]:
     total = 0.0
     passes = 0
     fails = 0
@@ -77,17 +77,17 @@ def get_average(xs: List[Tuple[float, Result]]) -> Tuple[Optional[float], int, O
         elif(r == "timeout"):
             timeouts += 1
     avr_total = total / (passes + fails) if (passes + fails) != 0 else None
-    passtime = passtime / passes if passes != 0 else None
+    avr_pass = passtime / passes if passes != 0 else None
     avr_fails = failtime / fails if fails != 0 else None
-    return avr_total, passes, fails,  timeouts, passtime, failtime
+    return avr_total, avr_pass, avr_fails, passes, fails,  timeouts
 
 def average_to_str(xs: List[Tuple[float, Result]], name: str)-> str:
-    t, passes, fails,  timeouts, passtime, failtime = get_average(xs)
+    t, passtime, failtime, passes, fails,  timeouts = get_average(xs)
     res: str
     if((passes > 0 and passes < len(xs))):
         print(f"inconsistent results for '{name}'")
         print(f"avr_total, passes, fails,  timeouts, passtime, failtime: {t, passes, fails,  timeouts, passtime, failtime}")
-        res = str(round(t)) + "$^{\dag}$"
+        res = str(round(t)) + "$^{\dag}$" # type: ignore
     elif(passes == len(xs) and t != None):
         res = f"{round(t)}" # type: ignore
     elif(fails > 0):
@@ -130,33 +130,68 @@ def read_results(prefix: str) -> Tuple[VerificationResults, Dict[str, LineInfo]]
         
     return results_verification, line_info
 
-def runCommand(command: str, verbose: bool = False, timeout: Optional[int] = None)-> Tuple[float, Result]:
+def runCommand(command: List[str], log_file: Optional[str] = None, verbose: bool = False, timeout: Optional[int] = None)-> Tuple[float, Result]:
     start = time.time()
+    out: Optional[str] = None
+    err_out: Optional[str] = None
     try:
-        p = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, timeout=timeout)
+        p = subprocess.run(command, capture_output=True, timeout=timeout, text=True)
     except subprocess.TimeoutExpired as to:
-        print(f"Process was stopped after {to.timeout} seconds")
-        if(to.stdout):
-            print(to.stdout.decode('UTF-8'))
         end = time.time()
-        return end - start, Result.TimeOut
-        
-    end = time.time()
-    if(p.returncode != 0):
-        print(p.stdout.decode('UTF-8'))
-        print(f"Return code was {p.returncode}")
-        return end - start, Result.Fail
-    elif verbose:
-        print(p.stdout.decode('UTF-8'))
-        
-    return end - start, Result.Pass
+        if(to.stdout):
+            out = to.stdout.decode("utf-8")
+        if(to.stderr):
+            err_out = to.stderr.decode("utf-8")
+        res = Result.TimeOut
+    else:
+        end = time.time()
+        out = p.stdout
+        err_out = p.stderr
+        if p.returncode == 0:
+            res = Result.Pass
+        elif p.returncode == 1:
+            res = Result.Fail
+        elif p.returncode == 2:
+            res = Result.Error
+        elif p.returncode == 3:
+            res = Result.TimeOut
+        else:
+            res = Result.Fail
+            print("Got unexpected return code '" + str(p.returncode) + "' for command '" + " ".join(command) + "'")
+
+    if(res == Result.Fail):
+        print(f"Verification Error, see logfile '{log_file}' for details")
+    
+    if(verbose):
+        if(out):
+            print(out)
+        if(err_out):
+            print(err_out)
+    if(log_file):
+        with open(log_file, "a") as f:
+            f.write("="*80 + "\n")
+            f.write(" ".join(command) + "\n")
+            f.write(datetime.datetime.fromtimestamp(start).strftime('%Y-%m-%d %H:%M:%S')+ "\n")
+            f.write(f"Result: {res}, time: {end - start} seconds \n")
+            if(out):
+                f.write("="*36 +" Stdout " + "="*36 + "\n")
+                f.write
+                f.write(out)
+            if(err_out):
+                f.write("="*36 +" Stderr " + "="*36 + "\n")
+                f.write(err_out)
+
+    return end - start, res
 
 class Experiments:
-    def __init__(self, versions: Dict[str, List[str]], mem_versions: Dict[str, List[str]], repetitions: int = 5, timeout: int = 10*60):
+    def __init__(self, versions: Dict[str, List[str]], mem_versions: Dict[str, List[str]], vercors_loc: str, silicon_loc: str, repetitions: int = 5, timeout: int = 10*60):
         self.versions: Dict[str, List[str]] = versions
         self.mem_versions: Dict[str, List[str]] = mem_versions
         self.line_infos: Dict[str,LineInfo] = {}
         self.verification_times: Dict[str, List[Tuple[float, Result]]] = {}
+
+        self.vercors_loc = vercors_loc
+        self.silicon_loc = silicon_loc
 
         self.repetitions = repetitions
         self.timeout = timeout
@@ -168,7 +203,8 @@ class Experiments:
         return result
 
     def version_to_file_name(self, name: str, version: str, mem: bool = False) -> str:
-        return name + ('_' + version if version != '' else '') + ('_mem' if mem else '') + '.pvl'
+        ext = '.pvl' if version == 'front' else '.c'
+        return name + ('_' + version if version != '' else '') + ('_mem' if mem else '') + ext
 
     def count_files(self) -> None:
         for n in self.versions:
@@ -193,15 +229,38 @@ class Experiments:
                 print(name)
                 print(line_info)
     
-    def run_verification(self, file_name: str, repetitions: Optional[int] = None, timeout: Optional[int] = None)-> None:
+    def run_verification(self, file_name: str, repetitions: Optional[int] = None, timeout: Optional[int] = None, useAPI= False)-> None:
         n: int = repetitions if repetitions != None else  self.repetitions # type: ignore
         t = timeout if timeout != None else self.timeout
+        command = [self.vercors_loc ,"--dev-assert-timeout", "0"] + \
+                (["--backend-option", "--prover=Z3-API"] if useAPI else []) + \
+                ["--silicon-quiet"
+                ,"--no-infer-heap-context-into-frame"
+                ,"--dev-total-timeout", str(t)
+                ,"--backend-file-base" ,"build/" + file_name 
+                ,"build/" + file_name]
         try:
             self.verification_times[file_name] = []
             for i in range(0,n):
-                verificationTime = runCommand('vct --backend-option --conditionalizePermissions --silicon-quiet build/' + file_name, timeout=t)
+                verificationTime = runCommand(command, log_file="logs/"+ file_name + ".txt")
                 self.verification_times[file_name].append(verificationTime)
-                print(verificationTime)
+                print(file_name, verificationTime)
+        except Exception as e:
+            print(e)
+
+    def run_silicon(self, file_name: str, repetitions: Optional[int] = None, timeout: Optional[int] = None)-> None:
+        n: int = repetitions if repetitions != None else  self.repetitions # type: ignore
+        t = timeout if timeout != None else self.timeout
+        silicon_command = [self.silicon_loc, "--logLevel", "INFO", "--timeout", str(t)]
+        vpr_fn = file_name + "-0.vpr"
+        try:
+            self.verification_times[vpr_fn] = []
+            for i in range(0,n):
+                verificationTime = runCommand(silicon_command + ["build/" + vpr_fn]
+                                                , log_file="logs/"+ vpr_fn + ".txt"
+                                              )
+                self.verification_times[vpr_fn].append(verificationTime)
+                print(vpr_fn, verificationTime)
         except Exception as e:
             print(e)
 
@@ -215,8 +274,8 @@ class Experiments:
         else:
             testing = self.versions[name] if version == 'all' else [version]
         for v in testing:
-            pvl_name = self.version_to_file_name(name, v, mem)
-            self.run_verification(pvl_name, repetitions, timeout)
+            filename = self.version_to_file_name(name, v, mem)
+            self.run_verification(filename, repetitions, timeout, useAPI=True)
 
     def save_results(self, prefix: str) -> None:
         pre = f'{prefix}'
@@ -234,7 +293,7 @@ class Experiments:
             halideAnn: Dict[str, int], scheduleLoC: Dict[str, Dict[str,int]]
             ) -> str:
         header0 = r"\begin{tabular}{l l \vbar \vbar r r \vbar r \vbar r \vbar r r r r \vbar \vbar r}"
-        header1 = r"\hline Name & & \multicolumn{2}{l\vbar}{\halide} & \multicolumn{1}{l\vbar}{Fr-end} & Sched. & \multicolumn{3}{l}{\pvl} & & LoA \\"
+        header1 = r"\hline Name & & \multicolumn{2}{l\vbar}{\halide} & \multicolumn{1}{l\vbar}{Fr-end} & Sched. & \multicolumn{3}{l}{\C} & & LoA \\"
         header2 = r"& & LoC & LoA & T. (s) & LoC & LoC & LoA & Loops & T. (s) & incr. \\ \hline \hline"
 
         rows: List[str] = [header0, header1, header2]
@@ -249,7 +308,8 @@ class Experiments:
                         shortname = 'conv\_'
                     if name == 'auto_viz':
                         shortname = 'auto\_'
-                    t = average_to_str(self.verification_times[filename], filename)
+                    front_filename = self.version_to_file_name(name, 'front')
+                    t = average_to_str(self.verification_times[front_filename], front_filename)
                     row += f"{shortname} & V{v} & {halideLoC[name]} & {halideAnn[name]} & {t} & 0 & "
                 else:
                     if name == 'conv_layer' and v == self.versions[name][1]:

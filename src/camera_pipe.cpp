@@ -450,6 +450,7 @@ int main(int argc, char *argv[]) {
     /* End Schedule */
 
     Target new_target = standard_target();
+    processed.compile_to_c(name + ".c", {input, matrix_3200, matrix_7000}, {}, name, new_target, true);
     processed.compile_to_pvl(name + ".pvl", {input, matrix_3200, matrix_7000}, {}, name, new_target, true);
 
     return 0;

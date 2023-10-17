@@ -24,22 +24,24 @@ int main(int argc, char *argv[]) {
   ImageParam B_(type_of<int>(), 2, "B_"); 
   ImageParam C_(type_of<int>(), 2, "C_"); 
 
-  A_.requires(0 <= A_(_0, _1) && A_(_0, _1) < 100); 
-  B_.requires(0 <= B_(_0, _1) && B_(_0, _1) < 100); 
-  C_.requires(0 <= C_(_0, _1) && C_(_0, _1) < 100); 
-
   Var i("i"), j("j"), ii("ii"), ji("ji"), jii("jii"), iii("iii"), io("io"), jo("jo"), t; 
-  Var ti[3], tj[3]; 
+  Var ti[3], tj[3];  
 
   // Swizzle A for better memory order in the inner loop.
   Func A("A"), B("B"), Btmp("Btmp"), As("As"), Atmp("Atmp"), result_("_result"); 
+  // Gemm
+  A_.requires(0 <= A_(_0, _1) && A_(_0, _1) < 100); 
+  B_.requires(0 <= B_(_0, _1) && B_(_0, _1) < 100); 
+  C_.requires(0 <= C_(_0, _1) && C_(_0, _1) < 100);
+
   Atmp(i, j) = A_(i,j); 
   Atmp.ensures(0 <= Atmp(i, j) && Atmp(i, j) < 100); 
 
   As(i, j, io) = Atmp(io * s + i, j); 
   As.ensures(0 <= As(i, j, io) && As(i, j, io) < 100); 
   A(i, j) = As(i % s, j, i / s); 
-  A.ensures(implies(i >= 0 && i < num_rows && j >=0 && j < sum_size, A(i, j) == A_(i,j))); 
+  A.ensures(implies(i >= 0 && i < num_rows && j >=0 && j < sum_size, 
+    A(i, j) == A_(i,j))); 
   B(i, j) = B_(i, j); 
   B.ensures(0 <= B(i, j) && B(i, j) < 100); 
 
@@ -60,7 +62,8 @@ int main(int argc, char *argv[]) {
 
   // Do the part that makes it a 'general' matrix multiply.
   result_(i, j) = (a_ * AB(i, j) + b_ * C_(i, j)); 
-  result_.ensures(result_(i, j) >= 0 && result_(i, j) <= sum_size * 100 * 100 * a_ + b_ * 100); 
+  result_.ensures(result_(i, j) >= 0 && 
+    result_(i, j) <= sum_size * 100 * 100 * a_ + b_ * 100); 
   
   // Bounding the dimensions
   set_bounds({{0, num_rows}, {0, sum_size}}, A_);
@@ -161,6 +164,6 @@ int main(int argc, char *argv[]) {
   if(front) {
       result_.translate_to_pvl(name + ".pvl", {}, {}); 
   } else {
-      result_.compile_to_pvl(name + ".pvl" , {A_, B_, C_}, {}, name, new_target, only_memory);
+      result_.compile_to_c(name + ".c" , {A_, B_, C_}, {}, name, new_target, only_memory);
   }
 }

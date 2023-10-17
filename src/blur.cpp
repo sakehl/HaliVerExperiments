@@ -67,6 +67,6 @@ int main(int argc, char *argv[]) {
   if(front) {
     blur_y.translate_to_pvl(name+".pvl", {}, {}); 
   } else {
-    blur_y.compile_to_pvl(name+".pvl" , {inp}, {}, name, new_target, only_memory);
+    blur_y.compile_to_c(name+".c" , {inp}, {}, name, new_target, only_memory);
   }
 }

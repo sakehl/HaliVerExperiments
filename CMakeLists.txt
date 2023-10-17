@@ -39,16 +39,16 @@ function(build_unit_test)
 
   foreach(V RANGE 3)
     add_custom_command(
-      OUTPUT ${UT_TARGET}_${V}.pvl
+      OUTPUT ${UT_TARGET}_${V}.c
       COMMAND ./${UT_TARGET} ${UT_TARGET}_${V} ${V}
       DEPENDS ${UT_TARGET}
       VERBATIM
     )
 
-    add_test(NAME ${UT_TARGET}_${V}.pvl
-    COMMAND vct --backend-option --conditionalizePermissions --silicon-quiet ${UT_TARGET}_${V}.pvl
+    add_test(NAME ${UT_TARGET}_${V}.c
+    COMMAND vct --backend-option --conditionalizePermissions --silicon-quiet ${UT_TARGET}_${V}.c
     )
-    set_tests_properties(${UT_TARGET}_${V}.pvl PROPERTIES
+    set_tests_properties(${UT_TARGET}_${V}.c PROPERTIES
       LABELS ${UT_DIR}:back:${UT_LABELS}
     )
 
@@ -56,16 +56,16 @@ function(build_unit_test)
 
   foreach(V RANGE 3)
     add_custom_command(
-      OUTPUT ${UT_TARGET}_${V}_mem.pvl
+      OUTPUT ${UT_TARGET}_${V}_mem.c
       COMMAND ./${UT_TARGET} ${UT_TARGET}_${V}_mem ${V} mem
       DEPENDS ${UT_TARGET}
       VERBATIM
     )
 
-    add_test(NAME ${UT_TARGET}_${V}_mem.pvl
-    COMMAND vct --backend-option --conditionalizePermissions --silicon-quiet ${UT_TARGET}_${V}_mem.pvl
+    add_test(NAME ${UT_TARGET}_${V}_mem.c
+    COMMAND vct --backend-option --conditionalizePermissions --silicon-quiet ${UT_TARGET}_${V}_mem.c
     )
-    set_tests_properties(${UT_TARGET}_${V}_mem.pvl PROPERTIES
+    set_tests_properties(${UT_TARGET}_${V}_mem.c PROPERTIES
       LABELS ${UT_DIR}:back:${UT_LABELS}:mem
     )
 
@@ -74,14 +74,14 @@ function(build_unit_test)
 
   add_custom_target(
     ${UT_TARGET}_pvl ALL
-    DEPENDS ${UT_TARGET}_front.pvl ${UT_TARGET}_0.pvl
-    ${UT_TARGET}_1.pvl ${UT_TARGET}_2.pvl ${UT_TARGET}_3.pvl
+    DEPENDS ${UT_TARGET}_front.pvl ${UT_TARGET}_0.c
+    ${UT_TARGET}_1.c ${UT_TARGET}_2.c ${UT_TARGET}_3.c
   )
 
   add_custom_target(
     ${UT_TARGET}_pvl_mem ALL
-    DEPENDS ${UT_TARGET}_0_mem.pvl
-    ${UT_TARGET}_1_mem.pvl ${UT_TARGET}_2_mem.pvl ${UT_TARGET}_3_mem.pvl
+    DEPENDS ${UT_TARGET}_0_mem.c
+    ${UT_TARGET}_1_mem.c ${UT_TARGET}_2_mem.c ${UT_TARGET}_3_mem.c
   )
   
 endfunction()
@@ -98,7 +98,7 @@ function(build_single_unit_test)
   target_link_libraries(${UT_TARGET} PRIVATE Halide::Halide)
 
   add_custom_command(
-    OUTPUT ${UT_TARGET}_mem.pvl
+    OUTPUT ${UT_TARGET}_mem.c
     COMMAND ./${UT_TARGET} ${UT_TARGET}_mem
     DEPENDS ${UT_TARGET}
     VERBATIM
@@ -106,13 +106,13 @@ function(build_single_unit_test)
 
   add_custom_target(
     ${UT_TARGET}_pvl ALL
-    DEPENDS ${UT_TARGET}_mem.pvl
+    DEPENDS ${UT_TARGET}_mem.c
   )
 
-  add_test(NAME ${UT_TARGET}_mem.pvl
-    COMMAND vct --backend-option --conditionalizePermissions --silicon-quiet ${UT_TARGET}_mem.pvl
+  add_test(NAME ${UT_TARGET}_mem.c
+    COMMAND vct --backend-option --conditionalizePermissions --silicon-quiet ${UT_TARGET}_mem.c
     )
-  set_tests_properties(${UT_TARGET}_mem.pvl PROPERTIES
+  set_tests_properties(${UT_TARGET}_mem.c PROPERTIES
     LABELS ${UT_DIR}:back:${UT_LABELS}
   )
 endfunction()
@@ -134,3 +134,20 @@ build_single_unit_test(TARGET bilateral_grid DIR src)
 build_single_unit_test(TARGET camera_pipe DIR src)
 
 build_single_unit_test(TARGET depthwise_separable_conv DIR src)
+
+
+add_executable(tutorial tutorial/tutorial.cpp)
+
+target_link_libraries(tutorial PRIVATE Halide::Halide)
+
+add_custom_command(
+  OUTPUT tutorial.c
+  COMMAND ./tutorial
+  DEPENDS tutorial
+  VERBATIM
+)
+
+add_custom_target(
+  tutorial_all ALL
+  DEPENDS tutorial.c
+)

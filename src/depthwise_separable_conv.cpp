@@ -195,5 +195,5 @@ int main(int argc, char *argv[]) {
     set_bounds({{0, CO}, {0, W}, {0, H}, {0, N}}, output.output_buffer());
 
     Target new_target = standard_target();
-    output.compile_to_pvl(name + ".pvl", {input, depthwise_filter, pointwise_filter, bias}, {}, name, new_target, true);
+    output.compile_to_c(name + ".c", {input, depthwise_filter, pointwise_filter, bias}, {}, name, new_target, true);
 }

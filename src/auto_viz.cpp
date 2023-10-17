@@ -220,6 +220,6 @@ int main(int argc, char *argv[]) {
     if(front) {
         output.translate_to_pvl(name + ".pvl", {}, {});
     } else {
-        output.compile_to_pvl(name + ".pvl" , {input}, {}, name, target, only_memory);
+        output.compile_to_c(name + ".c" , {input}, {}, name, target, only_memory);
     }
 }

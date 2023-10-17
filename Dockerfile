@@ -18,7 +18,7 @@ RUN mkdir /vercors && fix-permissions /vercors && git config --global --add safe
 
 USER $NB_UID
 
-RUN git clone -b 'haliver-v1.0' --single-branch --depth 1 https://github.com/sakehl/vercors.git /vercors
+RUN git clone -b 'haliver-v1.1' --single-branch --depth 1 https://github.com/sakehl/vercors.git /vercors
 
 RUN cd /vercors && ./mill vercors.compile
 
@@ -27,7 +27,7 @@ ENV PATH="$PATH:/vercors/bin"
 USER root
 
 # Get HaliVer/Halide
-RUN cd /tmp && git clone -b 'haliver-v1.0' --single-branch --depth 1 https://github.com/sakehl/Halide.git
+RUN cd /tmp && git clone -b 'haliver-v1.1' --single-branch --depth 1 https://github.com/sakehl/Halide.git
 
 # Build HaliVer/Halide
 RUN cd /tmp/Halide && mkdir build && \
@@ -50,9 +50,9 @@ COPY table.tex table.tex
 
 COPY results/ results/
 
-RUN mkdir -p build && mkdir -p results
+RUN mkdir -p build && mkdir -p results && mkdir -p logs
 
-RUN fix-permissions /experiments && fix-permissions /experiments/results
+RUN fix-permissions /experiments && fix-permissions /experiments/results && fix-permissions /experiments/logs
 
 USER $NB_UID
 

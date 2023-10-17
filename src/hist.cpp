@@ -125,6 +125,7 @@ int main(int argc, char *argv[]) {
             .unroll(c)
             .parallel(y, 8, TailStrategy::GuardWithIf) // Combination of split and parallel
             ;
+    /* Schedule 4 */
     } else if(schedule == 4){
         const int vec = 4; ///natural_vector_size<float>();
         // Make separate copies of Y to use while
@@ -184,6 +185,6 @@ int main(int argc, char *argv[]) {
     if(front) {
         output.translate_to_pvl(name + ".pvl", {}, {});
     } else {
-        output.compile_to_pvl(name + ".pvl" , {input}, {}, name, new_target, only_memory);
+        output.compile_to_c(name + ".c" , {input}, {}, name, new_target, only_memory);
     }
 }

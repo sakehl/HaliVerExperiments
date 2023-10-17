@@ -115,7 +115,7 @@ int main(int argc, char *argv[]) {
     blury.bound(z, 0, 12);
 
     Target new_target = standard_target();
-    bilateral_grid.compile_to_pvl(name + ".pvl", {input}, {}, name, new_target, true);
+    bilateral_grid.compile_to_c(name + ".c", {input}, {}, name, new_target, true);
 
 }
 
