@@ -1,0 +1,9 @@
+
+build/
+VM/
+dependencies/
+.vscode/
+logs/
+test/
+results/
+# ~results/

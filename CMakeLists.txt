@@ -135,19 +135,31 @@ build_single_unit_test(TARGET camera_pipe DIR src)
 
 build_single_unit_test(TARGET depthwise_separable_conv DIR src)
 
+function(build_lesson)
+  set(options)
+  set(oneValueArgs TARGET DIR)
+  set(multiValueArgs)
+  cmake_parse_arguments(UT "${options}" "${oneValueArgs}"
+                          "${multiValueArgs}" ${ARGN} )
 
-add_executable(tutorial tutorial/tutorial.cpp)
+  add_executable(${UT_TARGET} ${UT_DIR}/${UT_TARGET}.cpp)
 
-target_link_libraries(tutorial PRIVATE Halide::Halide)
+  target_link_libraries(${UT_TARGET} PRIVATE Halide::Halide)
 
-add_custom_command(
-  OUTPUT tutorial.c
-  COMMAND ./tutorial
-  DEPENDS tutorial
-  VERBATIM
-)
+  add_custom_command(
+    OUTPUT ${UT_TARGET}_all_files
+    COMMAND ./${UT_TARGET}
+    DEPENDS ${UT_TARGET}
+    VERBATIM
+  )
 
-add_custom_target(
-  tutorial_all ALL
-  DEPENDS tutorial.c
-)
+  add_custom_target(
+    ${UT_TARGET}_all ALL
+    DEPENDS ${UT_TARGET}_all_files
+  )
+endfunction()
+
+
+build_lesson(TARGET lesson1 DIR tutorial)
+build_lesson(TARGET lesson2 DIR tutorial)
+build_lesson(TARGET lesson3 DIR tutorial)

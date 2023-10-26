@@ -1,4 +1,5 @@
 from typing import List, Optional, Dict, Tuple, Any, Union
+from collections import Counter, defaultdict
 from enum import Enum
 import subprocess
 import time
@@ -350,3 +351,171 @@ class PDF(object):
 
   def _repr_html_(self)->str:
     return '<iframe src={0} width={1[0]} height={1[1]}></iframe>'.format(self.pdf, self.size)
+  
+
+def count_schedule_directives(line: str)-> Counter[str]:
+    directives = {"parallel", "vectorize", "unroll", 
+                  "split", "tile" , "fuse", "reorder",
+                  "compute_root", "compute_at",
+                  "store_at", "store_root",
+                  "fold_storage","compute_with","prefetch",
+                  "bound_extent", "bound", "rename", "update"}
+    result = Counter()
+    for d in directives:
+        i = line.count("."+d+"(")
+        if(i > 0):
+            result[d] += 1
+    return result
+
+def count_annotations(line: str)->int:
+    directives = {"ensures", "context", "requires", "invariant"}
+    result = 0
+    for d in directives:
+        result += line.count(d+"(")
+    return result
+
+def is_schedule(line: str)-> Optional[int]:
+    l = line.strip()
+    schedule = 0
+    if(l == "/* End Schedule */"):
+        return -1
+    elif(l == "/* Schedule */"):
+        return 0
+    elif(l.startswith("/* Schedule") and l.endswith("*/")):
+        l = l[len("/* Schedule"):-2]
+        try:
+            return int(l)
+        except:
+            print(f"Error reading line {line}")
+            return 0
+    else:
+        return None
+    
+def count_cpp_file(f: str)-> Tuple[int, int, Dict[int, Counter[str]]]:
+    anns = 0
+    sched = 0
+    sched_dict = {-1: Counter(), 0: Counter(), 1: Counter(), 2: Counter(), 3: Counter(), 4: Counter()}
+    loc = 0
+    with open(f) as f:
+        current_sched = -1
+        for l in f:
+            l = l.strip().split("//")[0]
+
+            next_sched = is_schedule(l)
+            if(next_sched != None):
+                current_sched = next_sched
+            else:
+                i = count_annotations(l)
+                anns += i
+                sched_dict[current_sched] += count_schedule_directives(l)
+                # Do not count lines which are part of the schedule or the annotations
+                if(current_sched == -1 and i == 0):
+                    loc += 1
+    return anns, loc, sched_dict
+
+def get_directives(sched: Counter[str])-> str:
+    result = []
+    if 'compute_at' in sched or 'compute_root' in sched:
+        result.append('c')
+    if 'fuse' in sched:
+        result.append('f')
+    if 'parallel' in sched:
+        result.append('p')
+    if 'reorder' in sched:
+        result.append('r')
+    if 'split' in sched or 'tile' in sched:
+        result.append('s')
+    if 'store_at' in sched or 'store_root' in sched:
+        result.append('st')
+    if 'unroll' in sched:
+        result.append('u')
+    
+    return '\{' + ','.join(result) + '\}'
+
+def make_normal_table(experiments: Experiments)->str:
+    directivesUsed : Dict[str, Dict[str,str]] = {}
+    scheduleLoC: Dict[str, Dict[str,int]] =  {}
+    halideAnn: Dict[str, int] = {}
+    halideLoC: Dict[str, int]  = {}
+
+    for name in experiments.versions:
+        fn = "src/" + name + ".cpp" 
+        anns, loc, sched_dict = count_cpp_file(fn)
+        halideAnn[name] = anns
+        halideLoC[name] = loc
+        # 'bound' can also occur outside the schedule, which is fine
+        if sum(sched_dict[-1].values()) != 0 and sched_dict[-1].keys() != {'bound'}:
+            print(f"Found non-zero count for outside schedule for {name}: {sched_dict[-1]}")
+        directivesUsed[name] = defaultdict(str)
+        scheduleLoC[name] = defaultdict(int)
+        for v in experiments.versions[name]:
+            directivesUsed[name][v] = get_directives(sched_dict[int(v)])
+            scheduleLoC[name][v] = sum(sched_dict[int(v)].values())
+
+    return experiments.make_table(directivesUsed, halideLoC, halideAnn, scheduleLoC)
+
+def make_mem_table(experiments: Experiments)->str:
+    directivesUsedMem : Dict[str, Dict[str,str]] = {}
+    scheduleLoCMem: Dict[str, Dict[str,int]] = {}
+    halideLoCMem: Dict[str, int]  = {}
+
+    for name in experiments.mem_versions:
+        fn = "src/" + name + ".cpp" 
+        anns, loc, sched_dict = count_cpp_file(fn)
+        halideLoCMem[name] = loc
+        
+        # 'bound' can also occur outside the schedule, which is fine
+        if sum(sched_dict[-1].values()) != 0 and sched_dict[-1].keys() != {'bound'}:
+            print(f"Found non-zero count for outside schedule for {name}: {sched_dict[-1]}")
+        directivesUsedMem[name] = { }
+        scheduleLoCMem[name] = {}
+        for v in experiments.mem_versions[name]:
+            version = int(v) if v != "" else 0
+            directivesUsedMem[name][v] = get_directives(sched_dict[version])
+            scheduleLoCMem[name][v] = sum(sched_dict[version].values())
+
+    header0 = r"\begin{tabular}{l l \vbar \vbar r \vbar r \vbar r r r r}"
+    header1 = r"\hline \textbf{Name} & & \multicolumn{1}{l\vbar}{\textbf{\halide}} & \textbf{\textbf{Sched}}. & \multicolumn{3}{l}{\textbf{\c}} & \\"
+    header2 = r"& & \textbf{LoC} & \textbf{Dir.} & \textbf{LoC} & \textbf{Ann.} & \textbf{Loops} & \textbf{T. (s).} \\ \hline \hline"
+
+    rows: List[str] = [header0, header1, header2]
+    for name in experiments.mem_versions:
+        for v in experiments.mem_versions[name]:
+            filename = experiments.version_to_file_name(name, v, True)
+            solo_bench = len(experiments.mem_versions[name]) == 1
+            vname = "" if solo_bench == 1 else "V" + v
+            row = ""
+            if v == experiments.mem_versions[name][0]:
+                shortname = name
+                if name == 'conv_layer':
+                    shortname = 'conv\_'
+                if name == 'auto_viz':
+                    shortname = 'auto\_'
+                LoC = "?" if solo_bench else "0"
+                if solo_bench:
+                    row += "\multicolumn{2}{l \\vbar \\vbar}{" + shortname.replace('_', '\_') + f"-{directivesUsedMem[name][v]} }} &"
+                else:
+                    row += f"{shortname} & {vname} &"
+                row += f" {halideLoCMem[name]} & {scheduleLoCMem[name][v]} & "
+            else:
+                if name == 'conv_layer' and v == experiments.mem_versions[name][1]:
+                    row += "layer"
+                if name == 'auto_viz' and v == experiments.mem_versions[name][1]:
+                    row += "viz"
+                row += f" & {vname}-{directivesUsedMem[name][v]} & \ditto &"
+                row += f"{scheduleLoCMem[name][v]} &"
+
+            full_name = name + '-' + v
+
+            row += f"{experiments.line_infos[filename].lines_of_code} &"
+            row += f"{experiments.line_infos[filename].nr_annotations} &" 
+            row += f"{experiments.line_infos[filename].loops} & "
+
+            res = experiments.verification_times[filename]
+            row += average_to_str(res, filename)
+            row += r"\\ \hline"
+            rows.append(row)
+        rows.append ("\hline")
+    rows.append(r"\end{tabular}")
+    mem_table = "\n".join(rows)
+    return mem_table
