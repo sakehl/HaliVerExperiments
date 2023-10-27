@@ -44,6 +44,8 @@ def is_none_line(line: str) -> bool:
     l = line.strip()
     return l == "" or l.startswith("{") or l.startswith("}") or l.startswith("//")
 
+# Count the number of lines of code, annotations and loops
+# A line is either code or annotation, not both. So  lines of code + lines of annotations should be the complete number of lines.
 def count_lines(name: str) -> LineInfo:
     lines_of_code: int = 0
     nr_annotations: int = 0
